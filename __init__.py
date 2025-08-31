@@ -122,9 +122,6 @@ class OpenRouterMultiMode:
                             "label": {"text_to_image": "文生图", "image_to_image": "图生图"}}),
                 "api_key": ("STRING", {"multiline": False, "default": ""}),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
-                # 随机种控制参数
-                "seed_mode": (["random", "fixed", "increase", "decrease"], {"default": "random"}),
-                "base_seed": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFF, "step": 1}),
             },
             "optional": {
                 "model": ("STRING", {"multiline": False,
@@ -145,25 +142,12 @@ class OpenRouterMultiMode:
             },
         }
 
-    def _get_seed(self, seed_mode: str, base_seed: int) -> int:
-        """根据种子模式计算最终使用的随机种"""
-        if seed_mode == "random":
-            return random.randint(0, 0xFFFFFFFF)
-        elif seed_mode == "fixed":
-            return base_seed
-        elif seed_mode == "increase":
-            return (base_seed + 1) % (0xFFFFFFFF + 1)  # 循环递增
-        elif seed_mode == "decrease":
-            return (base_seed - 1) % (0xFFFFFFFF + 1)  # 循环递减
-        return base_seed
-
     def _call_openrouter(
         self,
         api_key: str,
         pil_refs: List[Image.Image],
         prompt_text: str,
         model: str,
-        seed: int,
         image_format: str = "jpeg"
     ) -> Tuple[List[Image.Image], str, bool]:
         """调用OpenRouter API生成图像"""
@@ -176,15 +160,13 @@ class OpenRouterMultiMode:
         try:
             client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
             
-            # 根据是否有参考图构建不同的提示内容
+            # 修改提示词生成逻辑：移除种子文本，明确生成要求
             if pil_refs:
-                full_prompt = (f"请根据参考图和以下提示词生成新图片，无需描述图片。"
-                              f"提示词：'{prompt_text}' "
-                              f"随机种子：{seed}（请使用此种子确保生成结果的可重复性）")
+                full_prompt = (f"请参考提供的图片内容和风格，根据以下提示词生成新图片：{prompt_text}\n"
+                              "直接返回生成的图像，无需任何文字描述或额外说明。")
             else:
-                full_prompt = (f"请根据以下提示词生成新图片，无需描述图片。"
-                              f"提示词：'{prompt_text}' "
-                              f"随机种子：{seed}（请使用此种子确保生成结果的可重复性）")
+                full_prompt = (f"请根据以下提示词生成新图片：{prompt_text}\n"
+                              "直接返回生成的图像，无需任何文字描述或额外说明。")
                 
             content_items = [{"type": "text", "text": full_prompt}]
 
@@ -229,8 +211,6 @@ class OpenRouterMultiMode:
         api_key: str,
         prompt: str = "",
         model: str = "google/gemini-2.5-flash-image-preview:free",
-        seed_mode: str = "random",
-        base_seed: int = 0,
         image: Optional[torch.Tensor] = None,
         image2: Optional[torch.Tensor] = None,
         image3: Optional[torch.Tensor] = None,
@@ -244,15 +224,11 @@ class OpenRouterMultiMode:
         image_format: str = "jpeg",
     ):
         """多模式生成主函数"""
-        # 计算当前使用的随机种
-        current_seed = self._get_seed(seed_mode, base_seed)
-
         # 根据模式处理参考图片
         pils_refs: List[Image.Image] = []
         if mode == "image_to_image":
             if image is None:
                 return torch.zeros((0, 64, 64, 3), dtype=torch.float32), "错误：图生图模式下主图像不能为空"
-                
             try:
                 pils_main = _tensor_to_pils(image)
                 if pils_main:
@@ -300,7 +276,7 @@ class OpenRouterMultiMode:
         for attempt in range(attempts):
             used_key = next_key()
             out_pils, err, retryable = self._call_openrouter(
-                used_key, pils_refs, prompt_text, model, current_seed, image_format
+                used_key, pils_refs, prompt_text, model, image_format
             )
 
             if out_pils:
@@ -316,8 +292,7 @@ class OpenRouterMultiMode:
         # 准备输出
         out_tensor = _pils_to_tensor(success_pils)
         status = (f"成功生成{len(success_pils)}张图片 "
-                 f"(模式: {mode}, 使用Key #{(key_index-1)%len(api_keys)+1}, 尝试{attempt+1}/{attempts}, "
-                 f"种子: {current_seed})")
+              f"(模式: {mode}, 使用Key #{(key_index-1)%len(api_keys)+1}, 尝试{attempt+1}/{attempts})")
         return (out_tensor, status)
 
 
