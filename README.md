@@ -55,7 +55,8 @@
 
 ## 支持作者
 如果觉得这个项目有用，不妨请作者喝杯咖啡：
-![c7b4f6b5a3b8f4b163071c7e63426fe7](https://github.com/user-attachments/assets/3fd2ef46-5de4-4d6f-a605-291201bdf5b7)
+![e5dbe1abf97f5c0aa5147c4326146ad4](https://github.com/user-attachments/assets/690cbc05-63f9-4150-890d-08cd727f615a)
+
 
 
 > 致谢：感谢 OpenRouter 提供的 API 服务，以及 ComfyUI 提供的优秀平台。
