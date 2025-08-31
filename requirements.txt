@@ -1,0 +1,5 @@
+gradio
+Pillow
+openpyxl
+openai
+requests
