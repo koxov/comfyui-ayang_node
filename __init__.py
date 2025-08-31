@@ -103,14 +103,14 @@ def _pils_to_tensor(pils: List[Image.Image]) -> torch.Tensor:
     return torch.from_numpy(batch)
 
 
-class OpenRouterImageGenerator:
+class OpenRouterMultiMode:
     """
-    使用OpenRouter生成图像的节点
-    支持单提示词生成，可传入多张参考图，新增随机种控制功能
+    使用OpenRouter进行多模式图像生成的节点
+    支持文生图和图生图两种模式
     """
     CATEGORY = "OpenRouter"
     FUNCTION = "generate"
-    RETURN_TYPES = ("IMAGE", "STRING")  # 移除seed_used输出
+    RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("image", "status")
     OUTPUT_NODE = False
 
@@ -118,20 +118,24 @@ class OpenRouterImageGenerator:
     def INPUT_TYPES(cls):
         return {
             "required": {
+                "mode": (["text_to_image", "image_to_image"], {"default": "text_to_image", 
+                            "label": {"text_to_image": "文生图", "image_to_image": "图生图"}}),
                 "api_key": ("STRING", {"multiline": False, "default": ""}),
-                "image": ("IMAGE",),
-                "prompt": ("STRING", {"multiline": True, "default": ""}),  # 改为必填参数
-                # 新增随机种控制参数
+                "prompt": ("STRING", {"multiline": True, "default": ""}),
+                # 随机种控制参数
                 "seed_mode": (["random", "fixed", "increase", "decrease"], {"default": "random"}),
                 "base_seed": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFF, "step": 1}),
             },
             "optional": {
                 "model": ("STRING", {"multiline": False,
                                     "default": "google/gemini-2.5-flash-image-preview:free"}),
+                # 图生图模式的输入图像
+                "image": ("IMAGE",),
                 "image2": ("IMAGE",),
                 "image3": ("IMAGE",),
                 "image4": ("IMAGE",),
                 "image5": ("IMAGE",),
+                # 备用API Key
                 "api_key_1": ("STRING", {"multiline": False, "default": ""}),
                 "api_key_2": ("STRING", {"multiline": False, "default": ""}),
                 "api_key_3": ("STRING", {"multiline": False, "default": ""}),
@@ -159,10 +163,10 @@ class OpenRouterImageGenerator:
         pil_refs: List[Image.Image],
         prompt_text: str,
         model: str,
-        seed: int,  # 新增种子参数
+        seed: int,
         image_format: str = "jpeg"
     ) -> Tuple[List[Image.Image], str, bool]:
-        """调用OpenRouter API生成图像，增加种子参数"""
+        """调用OpenRouter API生成图像"""
         if OpenAI is None:
             return [], "请先安装openai库: pip install openai", False
 
@@ -171,12 +175,17 @@ class OpenRouterImageGenerator:
 
         try:
             client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-            headers = {}  # 移除site_url和site_name相关的header设置
-
-            # 构建提示内容，加入种子信息以保证生成的可重复性
-            full_prompt = (f"请根据参考图和以下提示词生成新图片，无需描述图片。"
-                          f"提示词：'{prompt_text}' "
-                          f"随机种子：{seed}（请使用此种子确保生成结果的可重复性）")
+            
+            # 根据是否有参考图构建不同的提示内容
+            if pil_refs:
+                full_prompt = (f"请根据参考图和以下提示词生成新图片，无需描述图片。"
+                              f"提示词：'{prompt_text}' "
+                              f"随机种子：{seed}（请使用此种子确保生成结果的可重复性）")
+            else:
+                full_prompt = (f"请根据以下提示词生成新图片，无需描述图片。"
+                              f"提示词：'{prompt_text}' "
+                              f"随机种子：{seed}（请使用此种子确保生成结果的可重复性）")
+                
             content_items = [{"type": "text", "text": full_prompt}]
 
             # 添加参考图片
@@ -205,10 +214,8 @@ class OpenRouterImageGenerator:
             return pils, "", False
 
         except OpenAIError as e:
-            # 处理OpenAI特定错误
             err_msg = f"API调用错误: {str(e)}"
             status_code = getattr(e, 'status_code', 0)
-            # 判断可重试状态码
             retryable_codes = {401, 403, 429, 502, 503, 504}
             retryable = status_code in retryable_codes
             return [], err_msg, retryable
@@ -218,13 +225,13 @@ class OpenRouterImageGenerator:
 
     def generate(
         self,
+        mode: str,
         api_key: str,
-        image,
         prompt: str = "",
         model: str = "google/gemini-2.5-flash-image-preview:free",
-        # 新增随机种参数
         seed_mode: str = "random",
         base_seed: int = 0,
+        image: Optional[torch.Tensor] = None,
         image2: Optional[torch.Tensor] = None,
         image3: Optional[torch.Tensor] = None,
         image4: Optional[torch.Tensor] = None,
@@ -236,37 +243,42 @@ class OpenRouterImageGenerator:
         api_key_5: str = "",
         image_format: str = "jpeg",
     ):
-        """主生成函数，增加随机种处理逻辑"""
+        """多模式生成主函数"""
         # 计算当前使用的随机种
         current_seed = self._get_seed(seed_mode, base_seed)
 
-        # 处理参考图片
-        try:
-            pils_main = _tensor_to_pils(image)
-            if not pils_main:
-                return image, "错误：参考图像不能为空"
-        except Exception as e:
-            return image, f"输入图像解析失败：{str(e)}"
-
-        # 收集所有参考图
-        pils_refs: List[Image.Image] = [pils_main[0]]
-        for opt_img in (image2, image3, image4, image5):
-            if opt_img is None:
-                continue
+        # 根据模式处理参考图片
+        pils_refs: List[Image.Image] = []
+        if mode == "image_to_image":
+            if image is None:
+                return torch.zeros((0, 64, 64, 3), dtype=torch.float32), "错误：图生图模式下主图像不能为空"
+                
             try:
-                pils_opt = _tensor_to_pils(opt_img)
-                if pils_opt:
-                    pils_refs.append(pils_opt[0])
+                pils_main = _tensor_to_pils(image)
+                if pils_main:
+                    pils_refs.append(pils_main[0])
+                else:
+                    return torch.zeros((0, 64, 64, 3), dtype=torch.float32), "错误：参考图像解析失败"
             except Exception as e:
-                # 仅警告，不中断执行
-                print(f"可选图像解析警告: {str(e)}")
+                return torch.zeros((0, 64, 64, 3), dtype=torch.float32), f"输入图像解析失败：{str(e)}"
+
+            # 收集所有可选参考图
+            for opt_img in (image2, image3, image4, image5):
+                if opt_img is None:
+                    continue
+                try:
+                    pils_opt = _tensor_to_pils(opt_img)
+                    if pils_opt:
+                        pils_refs.append(pils_opt[0])
+                except Exception as e:
+                    print(f"可选图像解析警告: {str(e)}")
 
         # 收集可用API Key
         api_keys = [k for k in [api_key_1, api_key_2, api_key_3, api_key_4, api_key_5] if k.strip()]
         if not api_keys and api_key.strip():
             api_keys = [api_key]
         if not api_keys:
-            return image, "错误：未提供有效API Key，请至少填写一个"
+            return torch.zeros((0, 64, 64, 3), dtype=torch.float32), "错误：未提供有效API Key，请至少填写一个"
 
         key_index = 0
         def next_key() -> str:
@@ -278,7 +290,7 @@ class OpenRouterImageGenerator:
         # 验证提示词
         prompt_text = prompt.strip()
         if not prompt_text:
-            return image, "错误：请输入提示词"
+            return torch.zeros((0, 64, 64, 3), dtype=torch.float32), "错误：请输入提示词"
 
         # 生成逻辑
         attempts = len(api_keys)
@@ -287,7 +299,6 @@ class OpenRouterImageGenerator:
 
         for attempt in range(attempts):
             used_key = next_key()
-            # 调用时传入随机种
             out_pils, err, retryable = self._call_openrouter(
                 used_key, pils_refs, prompt_text, model, current_seed, image_format
             )
@@ -296,24 +307,24 @@ class OpenRouterImageGenerator:
                 success_pils = out_pils
                 break
             if not retryable:
-                return image, f"使用Key #{attempt+1}发生不可重试错误: {err}"
+                return torch.zeros((0, 64, 64, 3), dtype=torch.float32), f"使用Key #{attempt+1}发生不可重试错误: {err}"
             last_err = err
 
         if not success_pils:
-            return image, f"所有API Key尝试失败: {last_err}"
+            return torch.zeros((0, 64, 64, 3), dtype=torch.float32), f"所有API Key尝试失败: {last_err}"
 
-        # 准备输出，状态信息中包含当前使用的种子
+        # 准备输出
         out_tensor = _pils_to_tensor(success_pils)
         status = (f"成功生成{len(success_pils)}张图片 "
-                 f"(使用Key #{(key_index-1)%len(api_keys)+1}, 尝试{attempt+1}/{attempts}, "
+                 f"(模式: {mode}, 使用Key #{(key_index-1)%len(api_keys)+1}, 尝试{attempt+1}/{attempts}, "
                  f"种子: {current_seed})")
         return (out_tensor, status)
 
 
 # 注册到ComfyUI
 NODE_CLASS_MAPPINGS = {
-    "nanobanana apiAICG阿洋": OpenRouterImageGenerator,
+    "nanobanana apiAICG阿洋（多模式）": OpenRouterMultiMode,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "nanobanana apiAICG阿洋": "nanobanana apiAICG阿洋",
+    "nanobanana apiAICG阿洋（多模式）": "nanobanana apiAICG阿洋（多模式）",
 }
