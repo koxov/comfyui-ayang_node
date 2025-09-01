@@ -22,7 +22,7 @@
 
 2. 安装所需依赖
    ```bash
-   cd comfyui-ayang.node
+   cd comfyui-ayang_node
    pip install -r requirements.txt
    ```
 
