@@ -90,7 +90,17 @@ def _tensor_to_pils(image) -> List[Image.Image]:
 def _pils_to_tensor(pils: List[Image.Image]) -> torch.Tensor:
     """将PIL图像列表转换为ComfyUI的IMAGE张量"""
     if not pils:
-        return torch.zeros((0, 64, 64, 3), dtype=torch.float32)
+        # 返回一个占位图像而不是空张量
+        placeholder = Image.new('RGB', (64, 64), color=(255, 255, 255))
+        pils = [placeholder]
+
+    # 确保所有图像尺寸一致
+    first_size = pils[0].size
+    for i, pil in enumerate(pils):
+        if pil.size != first_size:
+            # 调整尺寸以匹配第一张图像
+            pils[i] = pil.resize(first_size, Image.LANCZOS)
+            print(f"警告：图像{i}尺寸{pil.size}与第一张图像{first_size}不一致，已调整尺寸")
 
     np_imgs = []
     for pil in pils:
@@ -237,7 +247,10 @@ class OpenRouterTextToImage:
         # 收集可用API Key
         api_keys = [k for k in [api_key, api_key_1, api_key_2, api_key_3, api_key_4, api_key_5] if k.strip()]
         if not api_keys:
-            return torch.zeros((0, 64, 64, 3), dtype=torch.float32), "错误：未提供有效API Key，请至少填写一个"
+            # 返回占位图像而不是空张量
+            placeholder = Image.new('RGB', (1024, 1024), color=(255, 255, 255))
+            out_tensor = _pils_to_tensor([placeholder])
+            return out_tensor, "错误：未提供有效API Key，请至少填写一个（返回占位画布）"
 
         key_index = 0
         def next_key() -> str:
@@ -249,7 +262,10 @@ class OpenRouterTextToImage:
         # 验证提示词
         prompt_text = prompt.strip()
         if not prompt_text:
-            return torch.zeros((0, 64, 64, 3), dtype=torch.float32), "错误：请输入提示词"
+            # 返回占位图像而不是空张量
+            placeholder = Image.new('RGB', (1024, 1024), color=(255, 255, 255))
+            out_tensor = _pils_to_tensor([placeholder])
+            return out_tensor, "错误：请输入提示词（返回占位画布）"
 
         # 生成内置2048x2048白底画布并根据预设进行裁剪，作为参考图发送
         preset_map = {
@@ -466,11 +482,11 @@ class OpenRouterImageToImage:
         api_key: str,
         prompt: str = "",
         model: str = "google/gemini-2.5-flash-image-preview:free",
-        image: Optional[torch.Tensor] = None,
-        image2: Optional[torch.Tensor] = None,
-        image3: Optional[torch.Tensor] = None,
-        image4: Optional[torch.Tensor] = None,
-        image5: Optional[torch.Tensor] = None,
+        image=None,
+        image2=None,
+        image3=None,
+        image4=None,
+        image5=None,
         api_key_1: str = "",
         api_key_2: str = "",
         api_key_3: str = "",
@@ -479,35 +495,13 @@ class OpenRouterImageToImage:
         image_format: str = "jpeg",
     ):
         """图生图主函数"""
-        # 处理参考图片
-        pils_refs: List[Image.Image] = []
-        if image is None:
-            return torch.zeros((0, 64, 64, 3), dtype=torch.float32), "错误：主图像不能为空"
-        
-        try:
-            pils_main = _tensor_to_pils(image)
-            if pils_main:
-                pils_refs.append(pils_main[0])
-            else:
-                return torch.zeros((0, 64, 64, 3), dtype=torch.float32), "错误：参考图像解析失败"
-        except Exception as e:
-            return torch.zeros((0, 64, 64, 3), dtype=torch.float32), f"输入图像解析失败：{str(e)}"
-
-        # 收集所有可选参考图
-        for i, opt_img in enumerate([image2, image3, image4, image5], 2):
-            if opt_img is None:
-                continue
-            try:
-                pils_opt = _tensor_to_pils(opt_img)
-                if pils_opt:
-                    pils_refs.append(pils_opt[0])
-            except Exception as e:
-                print(f"可选图像{i}解析警告: {str(e)}")
-
         # 收集可用API Key
         api_keys = [k for k in [api_key, api_key_1, api_key_2, api_key_3, api_key_4, api_key_5] if k.strip()]
         if not api_keys:
-            return torch.zeros((0, 64, 64, 3), dtype=torch.float32), "错误：未提供有效API Key，请至少填写一个"
+            # 返回占位图像而不是空张量
+            placeholder = Image.new('RGB', (1024, 1024), color=(255, 255, 255))
+            out_tensor = _pils_to_tensor([placeholder])
+            return out_tensor, "错误：未提供有效API Key，请至少填写一个（返回占位画布）"
 
         key_index = 0
         def next_key() -> str:
@@ -519,7 +513,32 @@ class OpenRouterImageToImage:
         # 验证提示词
         prompt_text = prompt.strip()
         if not prompt_text:
-            return torch.zeros((0, 64, 64, 3), dtype=torch.float32), "错误：请输入提示词"
+            # 返回占位图像而不是空张量
+            placeholder = Image.new('RGB', (1024, 1024), color=(255, 255, 255))
+            out_tensor = _pils_to_tensor([placeholder])
+            return out_tensor, "错误：请输入提示词（返回占位画布）"
+
+        # 处理输入图像
+        pil_refs = []
+        try:
+            # 转换主图像
+            if image is not None:
+                pil_refs.extend(_tensor_to_pils(image))
+            # 转换额外图像
+            for img in [image2, image3, image4, image5]:
+                if img is not None:
+                    pil_refs.extend(_tensor_to_pils(img))
+        except Exception as e:
+            # 返回占位图像而不是空张量
+            placeholder = Image.new('RGB', (1024, 1024), color=(255, 255, 255))
+            out_tensor = _pils_to_tensor([placeholder])
+            return out_tensor, f"图像转换失败: {str(e)}（返回占位画布）"
+
+        if not pil_refs:
+            # 返回占位图像而不是空张量
+            placeholder = Image.new('RGB', (1024, 1024), color=(255, 255, 255))
+            out_tensor = _pils_to_tensor([placeholder])
+            return out_tensor, "错误：未提供有效输入图像（返回占位画布）"
 
         # 生成逻辑
         attempts = len(api_keys)
@@ -529,32 +548,103 @@ class OpenRouterImageToImage:
         for attempt in range(attempts):
             used_key = next_key()
             out_pils, err, retryable = self._call_openrouter(
-                used_key, pils_refs, prompt_text, model, image_format
+                used_key, pil_refs, prompt_text, model, image_format
             )
 
             if out_pils:
                 success_pils = out_pils
                 break
             if not retryable:
-                return torch.zeros((0, 64, 64, 3), dtype=torch.float32), f"使用Key #{attempt+1}发生不可重试错误: {err}"
+                # 返回第一张参考图作为占位
+                placeholder_list = [pil_refs[0]] if pil_refs else []
+                out_tensor = _pils_to_tensor(placeholder_list)
+                return out_tensor, f"使用Key #{attempt+1}发生不可重试错误: {err}（返回参考图）"
             last_err = err
 
         if not success_pils:
-            return torch.zeros((0, 64, 64, 3), dtype=torch.float32), f"所有API Key尝试失败: {last_err}"
+            # 所有Key尝试失败，返回第一张参考图作为占位
+            placeholder_list = [pil_refs[0]] if pil_refs else []
+            out_tensor = _pils_to_tensor(placeholder_list)
+            return out_tensor, f"所有API Key尝试失败: {last_err}（返回参考图）"
 
-        # 准备输出
+        # 转换为张量输出
         out_tensor = _pils_to_tensor(success_pils)
         status = (f"成功生成{len(success_pils)}张图片 "
               f"(图生图模式, 使用Key #{(key_index-1)%len(api_keys)+1}, 尝试{attempt+1}/{attempts})")
         return (out_tensor, status)
 
 
+class CanvasSizeCropForImg2Img:
+    """生成内置2048x2048白底并裁剪为选定尺寸，用作图生图的输入（控制输出尺寸）。"""
+    CATEGORY = "AICG阿洋"
+    FUNCTION = "generate"
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    OUTPUT_NODE = False
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {},
+            "optional": {
+                "canvas_preset": ([
+                    "1:1 - 1024x1024",
+                    "3:4 - 896x1152",
+                    "5:8 - 832x1216",
+                    "9:16 - 768x1344",
+                    "9:21 - 640x1536",
+                    "4:3 - 1152x896",
+                    "3:2 - 1216x832",
+                    "16:9 - 1344x768",
+                ], {"default": "1:1 - 1024x1024"}),
+            },
+        }
+
+    def generate(self, **kwargs):
+        # 兼容 ComfyUI 调用：优先从 kwargs 读取 canvas_preset
+        canvas_preset = kwargs.get('canvas_preset', "1:1 - 1024x1024")
+
+        preset_map = {
+            "1:1 - 1024x1024": (1024, 1024),
+            "3:4 - 896x1152": (896, 1152),
+            "5:8 - 832x1216": (832, 1216),
+            "9:16 - 768x1344": (768, 1344),
+            "9:21 - 640x1536": (640, 1536),
+            "4:3 - 1152x896": (1152, 896),
+            "3:2 - 1216x832": (1216, 832),
+            "16:9 - 1344x768": (1344, 768),
+        }
+
+        canvas_size = preset_map.get(canvas_preset, (1024, 1024))
+        try:
+            # 生成2048x2048白底画布
+            base_canvas = Image.new('RGB', (2048, 2048), color=(255, 255, 255))
+            target_w, target_h = canvas_size
+            # 中心裁剪到目标尺寸
+            left = (2048 - target_w) // 2
+            top = (2048 - target_h) // 2
+            right = left + target_w
+            bottom = top + target_h
+            cropped = base_canvas.crop((left, top, right, bottom))
+            # 转换为张量返回
+            out_tensor = _pils_to_tensor([cropped])
+            return (out_tensor,)
+        except Exception as e:
+            # 出错时返回默认尺寸的白底图
+            default_img = Image.new('RGB', (1024, 1024), color=(255, 255, 255))
+            out_tensor = _pils_to_tensor([default_img])
+            print(f"画布生成失败: {str(e)}，返回默认尺寸")
+            return (out_tensor,)
+
+
 # 注册到ComfyUI
 NODE_CLASS_MAPPINGS = {
     "nanobanana apiAICG阿洋（文生图）": OpenRouterTextToImage,
     "nanobanana apiAICG阿洋（图生图）": OpenRouterImageToImage,
+    "nanobanana 图生图尺寸调整": CanvasSizeCropForImg2Img,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "nanobanana apiAICG阿洋（文生图）": "nanobanana apiAICG阿洋（文生图）",
     "nanobanana apiAICG阿洋（图生图）": "nanobanana apiAICG阿洋（图生图）",
+    "nanobanana 图生图尺寸调整": "图生图尺寸调整",
 }
