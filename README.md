@@ -14,6 +14,13 @@
 
 ---
 
+##9.2号更新效果展示
+可以调整输出图像尺寸，文生图，图生图节点拆开。
+<img width="1005" height="762" alt="02202e22880bb2b133c00a921a7a4570" src="https://github.com/user-attachments/assets/769c6506-ec12-43c1-b0d6-062c609d80d1" />
+
+
+---
+
 ## 安装方法
 1. 将仓库克隆到你的 ComfyUI 的 `custom_nodes` 目录
    ```bash
