@@ -1,7 +1,7 @@
 [project]
 name = "ayang_node"
 description = "一个 ComfyUI 扩展，通过 API 集成实现图像生成及相关功能"
-version = "1.0.0"
+version = "1.0.2"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = ["阿洋 <854960147@qq.com>"] 
