@@ -1,0 +1,32 @@
+[project]
+name = "ayang_node"
+description = "一个 ComfyUI 扩展，通过 API 集成实现图像生成及相关功能"
+version = "1.0.0"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = ["阿洋 <854960147@qq.com>"] 
+requires-python = ">=3.8"
+keywords = ["comfyui", "comfyui-custom-node", "image-generation", "openrouter", "ai"]
+classifiers = [
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "gradio",
+    "Pillow",
+    "openpyxl",
+    "openai",
+    "requests"
+]
+
+[project.urls]
+Repository = "https://github.com/AICGayang/comfyui-ayang_node"
+Documentation = "https://github.com/AICGayang/comfyui-ayang_node/wiki"
+"Bug Tracker" = "https://github.com/AICGayang/comfyui-ayang_node/issues"
+
+[tool.comfy]
+PublisherId = "ayang"
+DisplayName = "comfyui-ayang_node"
+Icon = ""
+description = "集成 OpenRouter API 实现文生图、图生图功能，支持多参考图和种子控制"
+includes = []
+requires-comfyui = ">=0.1.0"
